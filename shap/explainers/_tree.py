@@ -1129,6 +1129,20 @@ class TreeEnsemble:
             self.objective = objective_name_map.get(shap_trees[0].criterion, None)
             self.tree_output = "raw_value"
             self.base_offset = model.init_params[param_idx]
+        elif safe_isinstance(model, ("sklearn.ensemble.AdaBoostClassifier", "sklearn.ensemble._weighted_boosting.AdaBoostClassifier", "imblearn.ensemble.RUSBoostClassifier", "imblearn.ensemble._weight_boosting.RUSBoostClassifier")):
+            assert hasattr(model, "estimators_"), "Model has no `estimators_`! Have you called `model.fit`?"
+            self.internal_dtype = model.estimators_[0].tree_.value.dtype.type
+            self.input_dtype = np.float32
+            self.trees = [SingleTree(e.tree_, normalize=True, scaling=weight, data=data, data_missing=data_missing) for e, weight in zip(model.estimators_, model.estimator_weights_/sum(model.estimator_weights_))]
+            self.objective = objective_name_map.get(model.base_estimator_.criterion, None) #This line is done to get the decision criteria, for example gini.
+            self.tree_output = "probability"
+        elif safe_isinstance(model, ("sklearn.ensemble._weighted_boosting.AdaBoostRegressor", "sklearn.ensemble.AdaBoostRegressor")):
+            assert hasattr(model, "estimators_"), "Model has no `estimators_`! Have you called `model.fit`?"
+            self.internal_dtype = model.estimators_[0].tree_.value.dtype.type
+            self.input_dtype = np.float32
+            self.trees = [SingleTree(e.tree_, scaling=weight, data=data, data_missing=data_missing) for e, weight in zip(model.estimators_, model.estimator_weights_/sum(model.estimator_weights_))]
+            self.objective = objective_name_map.get(model.base_estimator_.criterion, None) #This line is done to get the decision criteria, for example gini.
+            self.tree_output = "raw_value"
         else:
             raise InvalidModelError("Model type not yet supported by TreeExplainer: " + str(type(model)))
 
